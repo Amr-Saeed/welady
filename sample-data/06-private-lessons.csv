@@ -1,0 +1,3 @@
+id,teacherID,childID,subject,grade,lessonDay,lessonTime,location,price,isActive,created_at
+d0e1f2a3-aaaa-aaaa-aaaa-aaaaaaaaaaaa,c3d4e5f6-3333-3333-3333-333333333333,f6a7b8c9-6666-6666-6666-666666666666,فيزياء,الصف الأول الثانوي,"{الأحد,الأربعاء}",18:00:00,المعادي - بيت الطالب,400,true,2026-01-16T10:00:00Z
+e1f2a3b4-bbbb-bbbb-bbbb-bbbbbbbbbbbb,d4e5f6a7-4444-4444-4444-444444444444,a7b8c9d0-7777-7777-7777-777777777777,لغة إنجليزية,الصف الثاني الإعدادي,"{الإثنين}",19:00:00,الهرم - بيت الطالب,350,true,2026-01-22T11:00:00Z
