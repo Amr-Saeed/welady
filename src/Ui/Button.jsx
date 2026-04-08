@@ -6,6 +6,7 @@ function Button({
   type = "submit",
   withTransition = true,
   withHover = true,
+  useDefaultStyles = true,
 }) {
   return (
     <button
@@ -13,16 +14,18 @@ function Button({
       disabled={disabled}
       type={type}
       className={`
-        ${className} 
         font-bold 
         rounded-[var(--main-radius)]
         ${withTransition ? "transition-colors duration-500" : ""}
         ${
           disabled
             ? "!cursor-not-allowed bg-gray-400  opacity-50 pointer-events-none"
-            : "bg-[var(--main-color)] text-white cursor-pointer"
+            : useDefaultStyles
+              ? "bg-[var(--main-color)] text-white cursor-pointer"
+              : "cursor-pointer"
         }
-        ${withHover && !disabled ? "hover:bg-[var(--main-lite-color)]" : ""}
+        ${withHover && !disabled && useDefaultStyles ? "hover:bg-[var(--main-lite-color)]" : ""}
+        ${className}
       `}
     >
       {children}
