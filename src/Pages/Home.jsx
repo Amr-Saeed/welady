@@ -24,25 +24,40 @@ function ChooseRole() {
       </h2>
       <div className="flex gap-5 flex-col w-[80%] md:w-auto md:flex-row items-center justify-center">
         <Button
-          className={`px-24 py-20 text-2xl min-w-[300px] ${
+          useDefaultStyles={false}
+          className={`px-24 py-20 text-2xl min-w-[300px] bg-transparent ${
             chooseRole === "ولي أمر"
-              ? "bg-[var(--main-lite-color)] text-white"
-              : ""
-          }  transition-colors duration-500  hover:bg-[var(--main-lite-color)] hover:text-white text-black font-bold rounded-2xl border-[1px] border-[var(--main-color)] cursor-pointer`}
+              ? "!bg-[var(--main-color)] !text-white"
+              : "text-black"
+          }  transition-colors duration-500  hover:bg-[var(--main-color)] hover:text-white font-bold rounded-2xl border-[1px] border-[var(--main-color)] cursor-pointer`}
           onClick={() => setChooseRole("ولي أمر")}
         >
           ولي أمر{" "}
         </Button>
         <Button
-          className={`px-24 py-20 text-2xl min-w-[300px] ${
+          useDefaultStyles={false}
+          className={`px-24 py-20 text-2xl min-w-[300px] bg-transparent ${
             chooseRole === "معلم"
-              ? "bg-[var(--main-lite-color)] text-white"
-              : ""
-          }  transition-colors duration-500  hover:bg-[var(--main-lite-color)] hover:text-white text-black font-bold rounded-2xl border-[1px] border-[var(--main-color)] cursor-pointer`}
+              ? "!bg-[var(--main-color)] !text-white"
+              : "text-black"
+          }  transition-colors duration-500  hover:bg-[var(--main-color)] hover:text-white font-bold rounded-2xl border-[1px] border-[var(--main-color)] cursor-pointer`}
           onClick={() => setChooseRole("معلم")}
         >
           معلم{" "}
         </Button>{" "}
+        <Button
+          withTransition={chooseRole !== null}
+          withHover={chooseRole !== null}
+          className={`py-4 px-10 mb-2`}
+          disabled={chooseRole === null}
+          onClick={handleRegister}
+        >
+          {chooseRole === null
+            ? "تسجيل حساب"
+            : chooseRole === "معلم"
+              ? "تسجيل كمعلم"
+              : "تسجيل كولي أمر"}{" "}
+        </Button>
       </div>
     </div>
   );
