@@ -1,5 +1,7 @@
 # 🟢🟢🟢 **COMING SOON: ANDROID & iOS APPLICATIONS!** 🟢🟢🟢
 
+# 🟣🟣🟣 **[CHECK OUT THE DEMO HERE: https://welady.vercel.app/](https://welady.vercel.app/)** 
+
 
 # 🚀 **LOGIN CREDENTIALS (IMPORTANT)**
 
@@ -14,8 +16,6 @@
 
 - **Phone:** 01023358546
 - **Password:** 101055
-
-# ** YOU CAN CHECK OUT THE DEMO HERE: https://welady.vercel.app/ ** #
 
 ---
 
