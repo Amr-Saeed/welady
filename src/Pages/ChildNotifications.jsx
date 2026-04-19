@@ -15,15 +15,15 @@ import { useChildById } from "../Features/Parents/useChildInfo";
 import { useManualLessonsByChild } from "../Features/Parents/useManualLessons";
 import { useHomeworksByChild } from "../Features/Parents/useHomework";
 import { useLessonExpensesByChild } from "../Features/Parents/useLessonExpenses";
-import { getChildAttendanceRecords } from "../Services/apiAttendance";
+import { setLessonAttendanceStatus } from "../Services/apiAttendance";
 import {
   buildChildNotifications,
   markManualNotificationResolved,
 } from "../Services/apiNotifications";
 import { getChildEnrollmentRemovals } from "../Services/apiEnrollmentRemovals";
-import { recordAttendanceByParent } from "../Services/apiGroups";
 import toast from "react-hot-toast";
 import { formatArabicDateTime } from "../Utils/helper";
+import { useChildAttendanceRecords } from "../Features/Parents/useAttendance";
 
 function ChildNotifications() {
   const navigate = useNavigate();
@@ -47,13 +47,9 @@ function ChildNotifications() {
       enabled: !!childId,
       retry: 1,
     });
+  const { data: attendanceRecords = [] } = useChildAttendanceRecords(childId);
   const [updatingId, setUpdatingId] = useState(null);
   const [resolvedIds, setResolvedIds] = useState({});
-
-  const attendanceRecords = useMemo(
-    () => getChildAttendanceRecords(childId),
-    [childId],
-  );
 
   const notifications = useMemo(
     () =>
@@ -191,20 +187,27 @@ function ChildNotifications() {
 
   const handleParentAttendanceChoice = async (notification, status) => {
     const payload = notification.payload || {};
-    if (!payload.groupId || !payload.lessonDate) {
+    if (!payload.lessonDate) {
       toast.error("بيانات الإشعار غير مكتملة");
       return;
     }
 
     try {
       setUpdatingId(notification.id);
-      await recordAttendanceByParent(
-        payload.groupId,
+      await setLessonAttendanceStatus({
         childId,
-        payload.lessonDate,
+        childName: child?.name || "الطفل",
+        lesson: {
+          groupID: payload.groupId || null,
+          privateLessonID: payload.privateLessonId || null,
+          manualLessonID: payload.manualLessonId || null,
+          date: payload.lessonDate,
+          subject: payload.subject || notification.title || "الحصة",
+          teacherName: payload.teacherName || "",
+        },
         status,
-        "تم التحديث من ولي الأمر عبر الإشعارات",
-      );
+        notes: payload.reason || "تم التحديث من ولي الأمر عبر الإشعارات",
+      });
 
       markManualNotificationResolved(notification.id, {
         parentStatus: status,
@@ -286,7 +289,7 @@ function ChildNotifications() {
                 </h3>
               </div>
               <span
-                className={`text-xs px-2 py-1 rounded-full font-semibold ${badgeClassByType(notification.type)}`}
+                className={`text-xs px-2 py-1 text-center rounded-full font-semibold ${badgeClassByType(notification.type)}`}
               >
                 {typeLabel(notification.type)}
               </span>

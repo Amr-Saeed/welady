@@ -6,6 +6,7 @@ import {
   loginTeacherWithPhone,
   signUpTeacherWithPhone,
   getCurrentUser,
+  getAccountById,
 } from "../../Services/apiAuth";
 import toast from "react-hot-toast";
 
@@ -27,8 +28,11 @@ function TeachersLogin() {
     async function checkAuth() {
       const currentUser = await getCurrentUser();
       if (currentUser) {
-        // User is already logged in, redirect to dashboard
-        navigate("/teacher/dashboard", { replace: true });
+        // Check user role in DB
+        const dbUser = await getAccountById(currentUser.id);
+        if (dbUser && dbUser.role === "teacher") {
+          navigate("/teacher/dashboard", { replace: true });
+        }
       }
     }
     checkAuth();
@@ -90,15 +94,25 @@ function TeachersLogin() {
     }
 
     setIsLoading(true);
+    // DEBUG: Show what phone is being checked
+    console.log("Checking phone:", phone);
     try {
       const account = await getAccountByPhone(phone);
+      console.log("Account found:", account);
 
-      if (account && account.role !== "teacher") {
-        setError("هذا الرقم مسجل كولي أمر. استخدم شاشة دخول أولياء الأمور.");
+      if (account) {
+        if (account.role !== "teacher") {
+          setError("هذا الرقم مسجل كولي أمر. استخدم شاشة دخول أولياء الأمور.");
+          setIsLoading(false);
+          return;
+        }
+        // Existing teacher: switch to login step
+        setStep("login");
         return;
+      } else {
+        // New user: go to signup
+        setStep("signup");
       }
-
-      setStep(account ? "login" : "signup");
     } catch (err) {
       setError("حدث خطأ أثناء التحقق من الرقم");
       console.error(err);

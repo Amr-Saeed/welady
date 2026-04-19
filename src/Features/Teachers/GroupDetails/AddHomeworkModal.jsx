@@ -1,6 +1,7 @@
 import { useState } from "react";
 import toast from "react-hot-toast";
 import { addHomework } from "../../../Services/apiGroups";
+import { addInAppNotification } from "../../../Services/apiNotifications";
 
 function AddHomeworkModal({ groupId, groupMembers, onClose, onSuccess }) {
   const [title, setTitle] = useState("");
@@ -19,13 +20,41 @@ function AddHomeworkModal({ groupId, groupMembers, onClose, onSuccess }) {
 
     setIsLoading(true);
     try {
-      await addHomework(
+      const createdHomework = await addHomework(
         groupId,
         title,
         description,
         dueDate || null,
         childId || null,
       );
+
+      const targetChildIds = childId
+        ? [childId]
+        : (groupMembers || [])
+            .map((member) => member.child_id || member.childID)
+            .filter(Boolean);
+
+      const createdRows = Array.isArray(createdHomework)
+        ? createdHomework
+        : createdHomework
+          ? [createdHomework]
+          : [];
+
+      targetChildIds.forEach((targetChildId) => {
+        const matchingRow = createdRows.find(
+          (row) => (row.childID || row.child_id) === targetChildId,
+        );
+        const fallbackToken = `${Date.now()}-${targetChildId}`;
+
+        addInAppNotification({
+          childId: targetChildId,
+          type: "homework_new",
+          title: "واجب جديد",
+          message: `تمت إضافة واجب جديد: ${title.trim()}`,
+          dedupeKey: `homework-new-${groupId}-${matchingRow?.id || fallbackToken}-${targetChildId}`,
+        });
+      });
+
       toast.success("تم إضافة الواجب بنجاح!");
       onSuccess();
     } catch (error) {

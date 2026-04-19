@@ -79,3 +79,19 @@ export async function getChildEnrollmentRemovals(childId) {
     if (error) throw error;
     return data || [];
 }
+
+export async function getChildrenEnrollmentRemovals(childIds = []) {
+    const ids = Array.isArray(childIds) ? childIds.filter(Boolean) : [];
+    if (ids.length === 0) return [];
+
+    const { data, error } = await supabase
+        .from("enrollment_removals")
+        .select(
+            "id, childID, parentID, teacherID, teacherName, removalType, groupID, privateLessonID, reason, metadata, removedAt, created_at",
+        )
+        .in("childID", ids)
+        .order("removedAt", { ascending: false });
+
+    if (error) throw error;
+    return data || [];
+}

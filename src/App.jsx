@@ -1,6 +1,7 @@
 import { createBrowserRouter, RouterProvider } from "react-router-dom";
 import Home from "./Pages/Home";
 import ParentDashboard from "./Pages/ParentDashboard";
+import ProtectedRoute from "./Ui/ProtectedRoute";
 import TeacherDashboard from "./Pages/TeacherDashboard";
 import TeacherLessons from "./Pages/TeacherLessons";
 import ParentsLogin from "./Features/Authentication/ParentsLogin";
@@ -19,6 +20,7 @@ import GroupDetails from "./Pages/GroupDetails";
 import TeacherStudentAnalytics from "./Pages/TeacherStudentAnalytics";
 import TeacherAnalytics from "./Pages/TeacherAnalytics";
 import TeacherPrivateStudentAnalytics from "./Pages/TeacherPrivateStudentAnalytics";
+import TeacherPasswordLogin from "./Features/Authentication/TeacherPasswordLogin";
 
 const router = createBrowserRouter([
   {
@@ -26,43 +28,83 @@ const router = createBrowserRouter([
     children: [
       {
         path: "/parent",
-        element: <ParentDashboard />,
+        element: (
+          <ProtectedRoute allowedRole="parent">
+            <ParentDashboard />
+          </ProtectedRoute>
+        ),
       },
       {
-        path: "/teacher/dashboard",
-        element: <TeacherDashboard />,
+        path: "/teacher",
+        element: (
+          <ProtectedRoute allowedRole="teacher">
+            <TeacherDashboard />
+          </ProtectedRoute>
+        ),
       },
       {
         path: "/teacher/lessons",
-        element: <TeacherLessons />,
+        element: (
+          <ProtectedRoute allowedRole="teacher">
+            <TeacherLessons />
+          </ProtectedRoute>
+        ),
       },
       {
         path: "/teacher/analytics",
-        element: <TeacherAnalytics />,
+        element: (
+          <ProtectedRoute allowedRole="teacher">
+            <TeacherAnalytics />
+          </ProtectedRoute>
+        ),
       },
       {
         path: "/parent/add-child",
-        element: <AddChild />,
+        element: (
+          <ProtectedRoute allowedRole="parent">
+            <AddChild />
+          </ProtectedRoute>
+        ),
       },
       {
         path: "/parent/child-success",
-        element: <ChildSuccess />,
+        element: (
+          <ProtectedRoute allowedRole="parent">
+            <ChildSuccess />
+          </ProtectedRoute>
+        ),
       },
       {
         path: "/parent/join-group",
-        element: <JoinGroup />,
+        element: (
+          <ProtectedRoute allowedRole="parent">
+            <JoinGroup />
+          </ProtectedRoute>
+        ),
       },
       {
         path: "/teacher/group/:groupId",
-        element: <GroupDetails />,
+        element: (
+          <ProtectedRoute allowedRole="teacher">
+            <GroupDetails />
+          </ProtectedRoute>
+        ),
       },
       {
         path: "/teacher/group/:groupId/student/:childId/analytics",
-        element: <TeacherStudentAnalytics />,
+        element: (
+          <ProtectedRoute allowedRole="teacher">
+            <TeacherStudentAnalytics />
+          </ProtectedRoute>
+        ),
       },
       {
         path: "/teacher/lessons/student/:lessonId/:childId/analytics",
-        element: <TeacherPrivateStudentAnalytics />,
+        element: (
+          <ProtectedRoute allowedRole="teacher">
+            <TeacherPrivateStudentAnalytics />
+          </ProtectedRoute>
+        ),
       },
     ],
   },
@@ -79,28 +121,60 @@ const router = createBrowserRouter([
     element: <TeachersLogin />,
   },
   {
+    path: "/login/teacher-password",
+    element: <TeacherPasswordLogin />,
+  },
+  {
+    path: "/login/teachers/password",
+    element: <TeacherPasswordLogin />,
+  },
+  {
     path: "/parent/child/:childId",
-    element: <ChildDetail />,
+    element: (
+      <ProtectedRoute allowedRole="parent">
+        <ChildDetail />
+      </ProtectedRoute>
+    ),
   },
   {
     path: "/parent/child/:childId/schedule",
-    element: <ChildSchedule />,
+    element: (
+      <ProtectedRoute allowedRole="parent">
+        <ChildSchedule />
+      </ProtectedRoute>
+    ),
   },
   {
     path: "/parent/child/:childId/homework",
-    element: <ChildHomework />,
+    element: (
+      <ProtectedRoute allowedRole="parent">
+        <ChildHomework />
+      </ProtectedRoute>
+    ),
   },
   {
     path: "/parent/child/:childId/expenses",
-    element: <ChildExpenses />,
+    element: (
+      <ProtectedRoute allowedRole="parent">
+        <ChildExpenses />
+      </ProtectedRoute>
+    ),
   },
   {
     path: "/parent/child/:childId/attendance-summary",
-    element: <ChildAttendanceSummary />,
+    element: (
+      <ProtectedRoute allowedRole="parent">
+        <ChildAttendanceSummary />
+      </ProtectedRoute>
+    ),
   },
   {
     path: "/parent/child/:childId/notifications",
-    element: <ChildNotifications />,
+    element: (
+      <ProtectedRoute allowedRole="parent">
+        <ChildNotifications />
+      </ProtectedRoute>
+    ),
   },
 ]);
 

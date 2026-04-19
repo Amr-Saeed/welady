@@ -1,14 +1,73 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { BiArrowBack } from "react-icons/bi";
 import toast from "react-hot-toast";
 import { useParentProfile } from "../Features/Parents/useParentProfile";
 import { getGroupByCode, addMemberToGroup } from "../Services/apiGroups";
 import { useChildrenByParent } from "../Features/Parents/useChildInfo";
+import {
+  getManualLessonsByChildId,
+  addManualLesson,
+} from "../Services/apiManualLessons";
+import {
+  getLessonExpensesByChildId,
+  setLessonExpenseStatusByLesson,
+} from "../Services/apiLessonExpenses";
+
+function normalizeDayList(value) {
+  if (Array.isArray(value)) return value.filter(Boolean);
+  if (typeof value === "string" && value.trim()) return [value.trim()];
+  return [];
+}
+
+function normalizeTimeList(value) {
+  if (Array.isArray(value)) return value.filter(Boolean);
+  if (typeof value === "string" && value.trim()) return [value.trim()];
+  return [];
+}
+
+function nextOccurrenceDate(dayName, timeValue) {
+  const dayNames = {
+    الأحد: 0,
+    الاثنين: 1,
+    الثلاثاء: 2,
+    الأربعاء: 3,
+    الخميس: 4,
+    الجمعة: 5,
+    السبت: 6,
+  };
+
+  const dayIndex = dayNames[dayName];
+  if (dayIndex === undefined) return null;
+
+  const now = new Date();
+  const candidate = new Date(now);
+  const currentDay = now.getDay();
+  let diff = dayIndex - currentDay;
+  if (diff < 0) diff += 7;
+  candidate.setDate(now.getDate() + diff);
+
+  const [hoursRaw = "23", minutesRaw = "59"] = String(
+    timeValue || "23:59",
+  ).split(":");
+  candidate.setHours(
+    Number.parseInt(hoursRaw, 10) || 0,
+    Number.parseInt(minutesRaw, 10) || 0,
+    0,
+    0,
+  );
+
+  if (candidate < now) {
+    candidate.setDate(candidate.getDate() + 7);
+  }
+
+  return candidate.toISOString().slice(0, 10);
+}
 
 function JoinGroup() {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const [groupCode, setGroupCode] = useState("");
   const [selectedChildId, setSelectedChildId] = useState("");
   const [foundGroup, setFoundGroup] = useState(null);
@@ -47,7 +106,100 @@ function JoinGroup() {
       }
       await addMemberToGroup(foundGroup.id, selectedChildId, parentProfile.id);
     },
-    onSuccess: () => {
+    onSuccess: async () => {
+      const [existingLessons, existingExpenses] = await Promise.all([
+        getManualLessonsByChildId(selectedChildId).catch(() => []),
+        getLessonExpensesByChildId(selectedChildId).catch(() => []),
+      ]);
+
+      const normalizedGroupSchedule = Array.isArray(foundGroup?.group_schedule)
+        ? foundGroup.group_schedule
+        : [];
+      const lessonDays =
+        normalizeDayList(foundGroup?.lessonDays).length > 0
+          ? normalizeDayList(foundGroup?.lessonDays)
+          : normalizedGroupSchedule
+              .map((slot) => slot?.day_of_week || slot?.day)
+              .filter(Boolean);
+      const lessonTimes =
+        normalizeTimeList(foundGroup?.lessonTimes).length > 0
+          ? normalizeTimeList(foundGroup?.lessonTimes)
+          : normalizedGroupSchedule
+              .map((slot) => slot?.start_time || slot?.startTime)
+              .filter(Boolean);
+      const lessonLocation = foundGroup?.location || "غير محدد";
+      const lessonSubject = foundGroup?.subject || "مجموعة";
+      const teacherName =
+        foundGroup?.teacherName || foundGroup?.teacher_name || "غير محدد";
+      const lessonPrice = Number(foundGroup?.monthlyFee || 0);
+      const existingScheduleSignatures = new Set(
+        (existingLessons || []).map((lesson) => {
+          const day = Array.isArray(lesson?.lessonDay)
+            ? lesson.lessonDay[0]
+            : lesson?.lessonDay;
+          const time = lesson?.lessonTime || null;
+          return `${day || ""}__${time || ""}`;
+        }),
+      );
+
+      if (lessonDays.length > 0) {
+        const lessonCount = Math.max(lessonDays.length, lessonTimes.length, 1);
+        const lessonSeedTasks = Array.from(
+          { length: lessonCount },
+          (_, index) => {
+            const day = lessonDays[index] || lessonDays[0];
+            const time = lessonTimes[index] || lessonTimes[0] || null;
+            const date = day ? nextOccurrenceDate(day, time) : null;
+            const signature = `${day || ""}__${time || ""}`;
+
+            if (!day || !date) return null;
+            if (existingScheduleSignatures.has(signature)) return null;
+
+            return addManualLesson({
+              childId: selectedChildId,
+              subject: lessonSubject,
+              lessonDay: day,
+              lessonTime: time,
+              teacherName,
+              price: lessonPrice,
+              date,
+              location: lessonLocation,
+            });
+          },
+        ).filter(Boolean);
+
+        await Promise.all(lessonSeedTasks);
+      }
+
+      if (existingExpenses.length === 0 && lessonPrice > 0) {
+        const now = new Date();
+        const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-01`;
+
+        await setLessonExpenseStatusByLesson({
+          childId: selectedChildId,
+          groupID: foundGroup?.id || null,
+          month: currentMonth,
+          amount: lessonPrice,
+          status: "unpaid",
+          paymentDate: null,
+        });
+      }
+
+      await Promise.all([
+        queryClient.invalidateQueries({
+          queryKey: ["manualLessons", selectedChildId],
+        }),
+        queryClient.invalidateQueries({
+          queryKey: ["lessonExpenses", selectedChildId],
+        }),
+        queryClient.invalidateQueries({
+          queryKey: ["nearestLessonByChild", selectedChildId],
+        }),
+        queryClient.invalidateQueries({
+          queryKey: ["upcomingLessonsByChild", selectedChildId],
+        }),
+      ]);
+
       toast.success("تم الانضمام للمجموعة بنجاح!");
       navigate("/parent", { replace: true });
     },

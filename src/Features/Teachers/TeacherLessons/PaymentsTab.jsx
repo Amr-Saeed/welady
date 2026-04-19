@@ -1,51 +1,9 @@
-import toast from "react-hot-toast";
-import {
-  usePrivateLessonPayments,
-  useSetTeacherPaymentStatus,
-} from "../../../Services/apiTeacherPayments";
-import { addInAppNotification } from "../../../Services/apiNotifications";
+import { usePrivateLessonPayments } from "../../../Services/apiTeacherPayments";
 
 function PaymentsTab() {
   const { data, isLoading } = usePrivateLessonPayments();
-  const setStatusMutation = useSetTeacherPaymentStatus([
-    ["privateLessonPayments"],
-    ["teacherChildren"],
-  ]);
 
   const rows = data?.rows || [];
-
-  const handleStatus = async (row, status) => {
-    try {
-      await setStatusMutation.mutateAsync({
-        mode: "private_lesson",
-        childID: row.childID,
-        privateLessonID: row.privateLessonID,
-        amount: row.amount,
-        month: row.month,
-        status,
-      });
-
-      addInAppNotification({
-        childId: row.childID,
-        type: "payment_status_updated",
-        title: "تحديث حالة الدفع",
-        message: `تم تسجيل حالة الدفع في ${row.title}: ${status === "paid" ? "تم الدفع" : "لم يتم الدفع"}`,
-        dedupeKey: `payment-status-private-${row.privateLessonID}-${row.childID}-${row.month}`,
-        payload: {
-          mode: "private_lesson",
-          privateLessonId: row.privateLessonID,
-          month: row.month,
-          status,
-          amount: row.amount,
-        },
-      });
-
-      toast.success("تم تحديث حالة الدفع");
-    } catch (error) {
-      toast.error(error?.message || "تعذر تحديث حالة الدفع");
-      console.error(error);
-    }
-  };
 
   if (isLoading) {
     return (
@@ -74,8 +32,6 @@ function PaymentsTab() {
         <div className="space-y-3">
           {rows.map((row) => {
             const isPaid = row.status === "paid";
-            const disabled = setStatusMutation.isPending;
-            const isLocked = Boolean(row.hasRecordedStatus);
 
             return (
               <div
@@ -92,35 +48,26 @@ function PaymentsTab() {
                   </p>
                 </div>
 
-                {isLocked ? (
-                  <div className="rounded-lg bg-blue-100 px-3 py-2 text-sm font-bold text-blue-700">
-                    تم تسجيل الحالة
-                  </div>
-                ) : (
-                  <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      disabled={disabled}
-                      onClick={() => handleStatus(row, "paid")}
-                      className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-bold text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-70"
-                    >
-                      Paid
-                    </button>
-                    <button
-                      type="button"
-                      disabled={disabled}
-                      onClick={() => handleStatus(row, "unpaid")}
-                      className="rounded-lg bg-rose-600 px-4 py-2 text-sm font-bold text-white hover:bg-rose-700 disabled:cursor-not-allowed disabled:opacity-70"
-                    >
-                      Not Paid
-                    </button>
-                  </div>
-                )}
+                <div
+                  className={`rounded-lg px-3 py-2 text-sm font-bold ${
+                    isPaid
+                      ? "bg-emerald-100 text-emerald-700"
+                      : "bg-amber-100 text-amber-700"
+                  }`}
+                >
+                  {isPaid
+                    ? "تم الدفع بواسطة ولي الأمر"
+                    : "قيد انتظار دفع ولي الأمر"}
+                </div>
               </div>
             );
           })}
         </div>
       )}
+
+      <div className="mt-4 rounded-lg border border-gray-200 bg-gray-50 p-3 text-sm text-gray-600">
+        حالة الدفع يحددها ولي الأمر فقط. لا يمكن للمدرس تعديلها من هنا.
+      </div>
     </div>
   );
 }

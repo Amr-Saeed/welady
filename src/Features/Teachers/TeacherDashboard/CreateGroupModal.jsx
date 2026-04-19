@@ -8,8 +8,7 @@ function CreateGroupModal({ onClose, onSuccess }) {
   const [type, setType] = useState("group");
   const [description, setDescription] = useState("");
   const [selectedDays, setSelectedDays] = useState([]);
-  const [startTime, setStartTime] = useState("16:00");
-  const [endTime, setEndTime] = useState("18:00");
+  const [daySchedules, setDaySchedules] = useState({});
   const [location, setLocation] = useState("");
   const [monthlyFee, setMonthlyFee] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -26,14 +25,28 @@ function CreateGroupModal({ onClose, onSuccess }) {
   ];
 
   const toggleDay = (day) => {
-    setSelectedDays((currentDays) =>
-      currentDays.includes(day)
-        ? currentDays.filter((value) => value !== day)
-        : [...currentDays, day],
-    );
+    setSelectedDays((currentDays) => {
+      if (currentDays.includes(day)) {
+        setDaySchedules((currentSchedules) => {
+          const next = { ...currentSchedules };
+          delete next[day];
+          return next;
+        });
+        return currentDays.filter((value) => value !== day);
+      }
+
+      setDaySchedules((currentSchedules) => ({
+        ...currentSchedules,
+        [day]: currentSchedules[day] || {
+          startTime: "16:00",
+          endTime: "18:00",
+        },
+      }));
+      return [...currentDays, day];
+    });
   };
 
-  const isValidTimeRange = () => {
+  const isValidTimeRange = (startTime, endTime) => {
     if (!startTime || !endTime) {
       return false;
     }
@@ -43,6 +56,10 @@ function CreateGroupModal({ onClose, onSuccess }) {
 
     return endHours * 60 + endMinutes > startHours * 60 + startMinutes;
   };
+
+  const orderedSelectedDays = dayOptions.filter((day) =>
+    selectedDays.includes(day),
+  );
 
   const handleSubmit = async (event) => {
     event.preventDefault();
@@ -63,13 +80,21 @@ function CreateGroupModal({ onClose, onSuccess }) {
       return;
     }
 
-    if (!startTime || !endTime) {
-      setError("يرجى إدخال وقت البداية والنهاية");
-      return;
+    for (const day of orderedSelectedDays) {
+      const schedule = daySchedules[day] || {};
+      if (!schedule.startTime || !schedule.endTime) {
+        setError(`يرجى إدخال وقت البداية والنهاية ليوم ${day}`);
+        return;
+      }
+
+      if (!isValidTimeRange(schedule.startTime, schedule.endTime)) {
+        setError(`وقت النهاية يجب أن يكون بعد وقت البداية ليوم ${day}`);
+        return;
+      }
     }
 
-    if (!isValidTimeRange()) {
-      setError("وقت النهاية يجب أن يكون بعد وقت البداية");
+    if (!location.trim()) {
+      setError("يرجى إدخال مكان الحصة");
       return;
     }
 
@@ -82,9 +107,13 @@ function CreateGroupModal({ onClose, onSuccess }) {
 
     try {
       await createGroup(name, subject, type, description, {
-        lessonDays: selectedDays,
-        lessonTimes: selectedDays.map(() => startTime),
-        lessonTimesEnds: selectedDays.map(() => endTime),
+        lessonDays: orderedSelectedDays,
+        lessonTimes: orderedSelectedDays.map(
+          (day) => daySchedules[day]?.startTime || "",
+        ),
+        lessonTimesEnds: orderedSelectedDays.map(
+          (day) => daySchedules[day]?.endTime || "",
+        ),
         location,
         monthlyFee: Number(monthlyFee || 0),
       });
@@ -180,7 +209,7 @@ function CreateGroupModal({ onClose, onSuccess }) {
 
           <div>
             <label className="mb-2 block font-semibold text-gray-700">
-              المكان (اختياري)
+              المكان *
             </label>
             <input
               type="text"
@@ -189,6 +218,7 @@ function CreateGroupModal({ onClose, onSuccess }) {
               placeholder="مثال: المعادي - شارع 9"
               className="w-full rounded-lg border-2 border-gray-200 px-4 py-2 focus:border-purple-500 focus:outline-none"
               disabled={isLoading}
+              required
             />
           </div>
 
@@ -230,33 +260,71 @@ function CreateGroupModal({ onClose, onSuccess }) {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <div>
-              <label className="mb-2 block font-semibold text-gray-700">
-                وقت البداية *
+          {orderedSelectedDays.length > 0 ? (
+            <div className="space-y-3">
+              <label className="mb-1 block font-semibold text-gray-700">
+                مواعيد كل يوم *
               </label>
-              <input
-                type="time"
-                value={startTime}
-                onChange={(event) => setStartTime(event.target.value)}
-                className="w-full rounded-lg border-2 border-gray-200 px-4 py-2 focus:border-purple-500 focus:outline-none"
-                disabled={isLoading}
-              />
+              {orderedSelectedDays.map((day) => {
+                const schedule = daySchedules[day] || {
+                  startTime: "16:00",
+                  endTime: "18:00",
+                };
+
+                return (
+                  <div
+                    key={day}
+                    className="rounded-lg border border-gray-200 bg-gray-50 p-3"
+                  >
+                    <p className="mb-2 font-semibold text-gray-800">{day}</p>
+                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                      <div>
+                        <label className="mb-1 block text-sm text-gray-700">
+                          وقت البداية
+                        </label>
+                        <input
+                          type="time"
+                          value={schedule.startTime}
+                          onChange={(event) =>
+                            setDaySchedules((currentSchedules) => ({
+                              ...currentSchedules,
+                              [day]: {
+                                ...(currentSchedules[day] || {}),
+                                startTime: event.target.value,
+                              },
+                            }))
+                          }
+                          className="w-full rounded-lg border-2 border-gray-200 px-3 py-2 focus:border-purple-500 focus:outline-none"
+                          disabled={isLoading}
+                        />
+                      </div>
+                      <div>
+                        <label className="mb-1 block text-sm text-gray-700">
+                          وقت النهاية
+                        </label>
+                        <input
+                          type="time"
+                          value={schedule.endTime}
+                          onChange={(event) =>
+                            setDaySchedules((currentSchedules) => ({
+                              ...currentSchedules,
+                              [day]: {
+                                ...(currentSchedules[day] || {}),
+                                endTime: event.target.value,
+                              },
+                            }))
+                          }
+                          min={schedule.startTime || undefined}
+                          className="w-full rounded-lg border-2 border-gray-200 px-3 py-2 focus:border-purple-500 focus:outline-none"
+                          disabled={isLoading}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
-            <div>
-              <label className="mb-2 block font-semibold text-gray-700">
-                وقت النهاية *
-              </label>
-              <input
-                type="time"
-                value={endTime}
-                onChange={(event) => setEndTime(event.target.value)}
-                min={startTime || undefined}
-                className="w-full rounded-lg border-2 border-gray-200 px-4 py-2 focus:border-purple-500 focus:outline-none"
-                disabled={isLoading}
-              />
-            </div>
-          </div>
+          ) : null}
 
           <div className="flex gap-4 pt-4">
             <button

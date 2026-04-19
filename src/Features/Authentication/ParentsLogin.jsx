@@ -7,6 +7,7 @@ import {
   loginWithPhone,
   signUpWithPhone,
   getCurrentUser,
+  getAccountById,
 } from "../../Services/apiAuth";
 
 function ParentsLogin() {
@@ -27,8 +28,11 @@ function ParentsLogin() {
     async function checkAuth() {
       const currentUser = await getCurrentUser();
       if (currentUser) {
-        // User is already logged in, redirect to dashboard
-        navigate("/parent", { replace: true });
+        // Check user role in DB
+        const dbUser = await getAccountById(currentUser.id);
+        if (dbUser && dbUser.role === "parent") {
+          navigate("/parent", { replace: true });
+        }
       }
     }
     checkAuth();
@@ -96,15 +100,13 @@ function ParentsLogin() {
       if (existingUser) {
         if (existingUser.role !== "parent") {
           setError("هذا الرقم مسجل كمعلم. استخدم شاشة دخول المعلمين.");
+          setIsLoading(false);
           return;
         }
-
-        // Existing user - go to login
-        console.log("✅ Existing user found:", existingUser);
+        // Existing parent: go to login only
         setStep("login");
       } else {
-        // New user - go to signup
-        console.log("🆕 New user - going to signup");
+        // New user: go to signup
         setStep("signup");
       }
     } catch (err) {

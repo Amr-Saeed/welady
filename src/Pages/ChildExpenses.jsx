@@ -13,11 +13,31 @@ import {
 import { useChildById } from "../Features/Parents/useChildInfo";
 import { getExpenseMeta, saveExpenseMeta } from "../Services/apiLessonExpenses";
 import {
+  addInAppNotification,
+  addTeacherInAppNotification,
+} from "../Services/apiNotifications";
+import {
   useAddLessonExpense,
   useLessonExpensesByChild,
   useSetLessonExpenseStatus,
+  useSetLessonExpenseStatusByLesson,
 } from "../Features/Parents/useLessonExpenses";
 import { useManualLessonsByChild } from "../Features/Parents/useManualLessons";
+
+function normalizeTeacherLabel(value) {
+  const normalized = (value || "").toString().trim();
+  if (!normalized) return "";
+  if (normalized === "غير محدد" || normalized === "المدرس") return "";
+  return normalized;
+}
+
+function pickTeacherLabel(...candidates) {
+  for (const candidate of candidates) {
+    const normalized = normalizeTeacherLabel(candidate);
+    if (normalized) return normalized;
+  }
+  return "مدرس غير محدد";
+}
 
 function ChildExpenses() {
   const navigate = useNavigate();
@@ -43,6 +63,10 @@ function ChildExpenses() {
     useAddLessonExpense(childId);
   const { mutateAsync: setExpenseStatus, isPending: isMarkingPaid } =
     useSetLessonExpenseStatus(childId);
+  const {
+    mutateAsync: upsertExpenseStatusByLesson,
+    isPending: isUpsertingStatus,
+  } = useSetLessonExpenseStatusByLesson(childId);
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [teacherName, setTeacherName] = useState("");
@@ -142,8 +166,11 @@ function ChildExpenses() {
     const sessionMap = new Map();
 
     normalizedExpenses.forEach((row) => {
-      const teacherName = row.meta.teacherName || "مدرس غير محدد";
-      const subject = row.meta.subject || "بدون مادة";
+      const teacherName = pickTeacherLabel(
+        row.teacherName,
+        row.meta.teacherName,
+      );
+      const subject = row.meta.subject || row.subject || "بدون مادة";
       const paymentType = row.meta.paymentType || "monthly";
 
       if (paymentType !== "session") {
@@ -165,6 +192,12 @@ function ChildExpenses() {
           latestCreatedAt: row.created_at,
           pricePerSession: Number(row.meta.pricePerSession || row.amount || 0),
           notes: row.meta.notes || "",
+          teacherID: row.teacherID || null,
+          groupID: row.groupID || null,
+          privateLessonID: row.privateLessonID || null,
+          manualLessonID: row.manualLessonID || null,
+          monthForUpsert: row.month || currentMonthDate,
+          amountForUpsert: Number(row.amount || 0),
         });
         return;
       }
@@ -190,6 +223,12 @@ function ChildExpenses() {
           latestCreatedAt: row.created_at,
           pricePerSession: Number(row.meta.pricePerSession || row.amount || 0),
           notes: row.meta.notes || "",
+          teacherID: row.teacherID || null,
+          groupID: row.groupID || null,
+          privateLessonID: row.privateLessonID || null,
+          manualLessonID: row.manualLessonID || null,
+          monthForUpsert: row.month || currentMonthDate,
+          amountForUpsert: Number(row.amount || 0),
         });
         return;
       }
@@ -215,6 +254,22 @@ function ChildExpenses() {
       ) {
         existing.latestCreatedAt = row.created_at;
       }
+      if (!existing.teacherID && row.teacherID) {
+        existing.teacherID = row.teacherID;
+      }
+      if (!existing.groupID && row.groupID) existing.groupID = row.groupID;
+      if (!existing.privateLessonID && row.privateLessonID) {
+        existing.privateLessonID = row.privateLessonID;
+      }
+      if (!existing.manualLessonID && row.manualLessonID) {
+        existing.manualLessonID = row.manualLessonID;
+      }
+      if (!existing.monthForUpsert && row.month) {
+        existing.monthForUpsert = row.month;
+      }
+      if (!existing.amountForUpsert && Number(row.amount || 0) > 0) {
+        existing.amountForUpsert = Number(row.amount || 0);
+      }
     });
 
     const sessionGroups = Array.from(sessionMap.values()).map((group) => {
@@ -231,7 +286,77 @@ function ChildExpenses() {
       (a, b) =>
         new Date(b.latestCreatedAt || 0) - new Date(a.latestCreatedAt || 0),
     );
-  }, [normalizedExpenses]);
+  }, [normalizedExpenses, currentMonthDate]);
+
+  const inferredLessonCards = useMemo(() => {
+    const byKey = new Map();
+
+    manualLessons.forEach((lesson) => {
+      const source = lesson.source;
+      const groupID = lesson.groupID || null;
+      const privateLessonID = lesson.privateLessonID || null;
+
+      if (source !== "group" && source !== "private") return;
+
+      const relationKey =
+        source === "group" ? `group:${groupID}` : `private:${privateLessonID}`;
+      if (!relationKey || relationKey.endsWith(":null")) return;
+
+      if (byKey.has(relationKey)) return;
+
+      byKey.set(relationKey, {
+        key: `virtual-${relationKey}`,
+        relationKey,
+        teacherName: pickTeacherLabel(lesson.teacherName),
+        subject: lesson.subject || "بدون مادة",
+        paymentType: "monthly",
+        total: Number(lesson.price || 0),
+        paid: 0,
+        remaining: Number(lesson.price || 0),
+        status: "pending",
+        nextPaymentDate: currentMonthDate,
+        progress: 0,
+        sessionCount: 1,
+        rowIds: [],
+        unpaidRowIds: [],
+        latestCreatedAt: new Date().toISOString(),
+        pricePerSession: Number(lesson.price || 0),
+        notes: "",
+        teacherID: lesson.teacherID || null,
+        groupID,
+        privateLessonID,
+        manualLessonID: null,
+        monthForUpsert: currentMonthDate,
+        amountForUpsert: Number(lesson.price || 0),
+      });
+    });
+
+    return Array.from(byKey.values());
+  }, [manualLessons, currentMonthDate]);
+
+  const displayTeacherGroups = useMemo(() => {
+    const existingRelationKeys = new Set(
+      teacherGroups.map((group) => {
+        if (group.groupID) return `group:${group.groupID}`;
+        if (group.privateLessonID) return `private:${group.privateLessonID}`;
+        if (group.manualLessonID) return `manual:${group.manualLessonID}`;
+        return group.key;
+      }),
+    );
+
+    const merged = [...teacherGroups];
+    inferredLessonCards.forEach((card) => {
+      if (!existingRelationKeys.has(card.relationKey)) {
+        merged.push(card);
+      }
+    });
+
+    return merged.sort(
+      (a, b) =>
+        new Date(b.latestCreatedAt || 0).getTime() -
+        new Date(a.latestCreatedAt || 0).getTime(),
+    );
+  }, [teacherGroups, inferredLessonCards]);
 
   const paymentHistory = useMemo(() => {
     return [...normalizedExpenses].sort(
@@ -318,16 +443,63 @@ function ChildExpenses() {
       const targetIds =
         group.paymentType === "session" ? group.unpaidRowIds : group.rowIds;
 
-      await Promise.all(
-        targetIds.map((expenseId) =>
-          setExpenseStatus({
-            expenseId,
-            childId,
-            status: "paid",
-            paymentDate: new Date().toISOString(),
-          }),
-        ),
-      );
+      if (targetIds.length > 0) {
+        await Promise.all(
+          targetIds.map((expenseId) =>
+            setExpenseStatus({
+              expenseId,
+              childId,
+              status: "paid",
+              paymentDate: new Date().toISOString(),
+            }),
+          ),
+        );
+      } else {
+        await upsertExpenseStatusByLesson({
+          childId,
+          status: "paid",
+          paymentDate: new Date().toISOString(),
+          month: group.monthForUpsert || currentMonthDate,
+          amount: Number(group.amountForUpsert || group.total || 0),
+          groupID: group.groupID || null,
+          privateLessonID: group.privateLessonID || null,
+          manualLessonID: group.manualLessonID || null,
+        });
+      }
+
+      addInAppNotification({
+        childId,
+        type: "payment_status_updated",
+        title: "تحديث حالة الدفع",
+        message: `قام ولي الأمر بتحديد حالة الدفع: تم الدفع (${group.subject || "بدون مادة"})`,
+        dedupeKey: `parent-payment-paid-${childId}-${group.key}-${String(group.nextPaymentDate || "")}`,
+        payload: {
+          status: "paid",
+          source: "parent",
+          subject: group.subject || null,
+          paymentType: group.paymentType,
+          amount: group.total,
+        },
+      });
+
+      addTeacherInAppNotification({
+        teacherId: group.teacherID,
+        type: "payment_status_updated",
+        title: "تحديث من ولي الأمر",
+        message: `تم تحديث حالة دفع ${child?.name || "الطفل"} إلى: تم الدفع (${group.subject || "بدون مادة"})`,
+        dedupeKey: `teacher-parent-payment-paid-${group.teacherID || ""}-${childId}-${group.key}-${String(group.nextPaymentDate || "")}`,
+        payload: {
+          childId,
+          childName: child?.name || null,
+          status: "paid",
+          subject: group.subject || null,
+          paymentType: group.paymentType,
+          amount: group.total,
+          groupId: group.groupID || null,
+          privateLessonId: group.privateLessonID || null,
+        },
+      });
+
       toast.success("تم تحديث حالة الدفع");
     } catch (err) {
       console.error(err);
@@ -337,16 +509,63 @@ function ChildExpenses() {
 
   const handleWillPayInLesson = async (group) => {
     try {
-      await Promise.all(
-        group.rowIds.map((expenseId) =>
-          setExpenseStatus({
-            expenseId,
-            childId,
-            status: "unpaid",
-            paymentDate: null,
-          }),
-        ),
-      );
+      if (group.rowIds.length > 0) {
+        await Promise.all(
+          group.rowIds.map((expenseId) =>
+            setExpenseStatus({
+              expenseId,
+              childId,
+              status: "unpaid",
+              paymentDate: null,
+            }),
+          ),
+        );
+      } else {
+        await upsertExpenseStatusByLesson({
+          childId,
+          status: "unpaid",
+          paymentDate: null,
+          month: group.monthForUpsert || currentMonthDate,
+          amount: Number(group.amountForUpsert || group.total || 0),
+          groupID: group.groupID || null,
+          privateLessonID: group.privateLessonID || null,
+          manualLessonID: group.manualLessonID || null,
+        });
+      }
+
+      addInAppNotification({
+        childId,
+        type: "payment_status_updated",
+        title: "تحديث حالة الدفع",
+        message: `قام ولي الأمر بتحديد حالة الدفع: سيدفع في الدرس (${group.subject || "بدون مادة"})`,
+        dedupeKey: `parent-payment-unpaid-${childId}-${group.key}-${String(group.nextPaymentDate || "")}`,
+        payload: {
+          status: "unpaid",
+          source: "parent",
+          subject: group.subject || null,
+          paymentType: group.paymentType,
+          amount: group.total,
+        },
+      });
+
+      addTeacherInAppNotification({
+        teacherId: group.teacherID,
+        type: "payment_status_updated",
+        title: "تحديث من ولي الأمر",
+        message: `تم تحديث حالة دفع ${child?.name || "الطفل"} إلى: سيدفع في الدرس (${group.subject || "بدون مادة"})`,
+        dedupeKey: `teacher-parent-payment-unpaid-${group.teacherID || ""}-${childId}-${group.key}-${String(group.nextPaymentDate || "")}`,
+        payload: {
+          childId,
+          childName: child?.name || null,
+          status: "unpaid",
+          subject: group.subject || null,
+          paymentType: group.paymentType,
+          amount: group.total,
+          groupId: group.groupID || null,
+          privateLessonId: group.privateLessonID || null,
+        },
+      });
+
       toast.success("تم تعيين الحالة: سيدفع في الدرس");
     } catch (err) {
       console.error(err);
@@ -463,13 +682,13 @@ function ChildExpenses() {
           )}
           {!isExpensesLoading &&
             !expensesError &&
-            teacherGroups.length === 0 && (
+            displayTeacherGroups.length === 0 && (
               <div className="bg-white rounded-xl p-4 border border-gray-200 text-sm text-gray-600">
                 لا توجد مصروفات بعد. اضغطي على + لإضافة مصروف جديد.
               </div>
             )}
 
-          {teacherGroups.map((group) => (
+          {displayTeacherGroups.map((group) => (
             <div
               key={group.key}
               className="bg-white rounded-2xl p-4 border border-gray-200 shadow-sm"
@@ -482,7 +701,7 @@ function ChildExpenses() {
                   <p className="text-xs text-gray-500">{group.subject}</p>
                 </div>
                 <span
-                  className={`text-xs px-2 py-1 rounded-full font-semibold ${
+                  className={`text-xs px-2 py-1 text-center rounded-full font-semibold ${
                     group.status === "paid"
                       ? "bg-emerald-100 text-emerald-700"
                       : "bg-red-100 text-red-700"
@@ -542,7 +761,7 @@ function ChildExpenses() {
                 <button
                   type="button"
                   onClick={() => handleMarkPaid(group)}
-                  disabled={isMarkingPaid}
+                  disabled={isMarkingPaid || isUpsertingStatus}
                   className="w-full mt-3 bg-[var(--main-color)] hover:bg-[var(--main-dark-color)] text-white font-bold py-2.5 rounded-xl disabled:opacity-60"
                 >
                   تم الدفع
@@ -553,7 +772,7 @@ function ChildExpenses() {
                 <button
                   type="button"
                   onClick={() => handleWillPayInLesson(group)}
-                  disabled={isMarkingPaid}
+                  disabled={isMarkingPaid || isUpsertingStatus}
                   className="w-full mt-2 bg-gray-100 hover:bg-gray-200 text-gray-800 font-bold py-2.5 rounded-xl border border-gray-300 disabled:opacity-60"
                 >
                   سيدفع في الدرس
@@ -599,7 +818,10 @@ function ChildExpenses() {
                   </span>
                 </div>
                 <div className="text-gray-600 mt-1">
-                  {getExpenseMeta(row.id)?.teacherName || "مدرس غير محدد"}
+                  {pickTeacherLabel(
+                    row.teacherName,
+                    getExpenseMeta(row.id)?.teacherName,
+                  )}
                 </div>
                 <div className="text-gray-500 text-xs">
                   {formatDate(row.paymentDate || row.created_at)}

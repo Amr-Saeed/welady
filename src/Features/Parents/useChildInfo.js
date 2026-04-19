@@ -1,5 +1,11 @@
 import { useQuery } from "@tanstack/react-query";
-import { getChildrenByParent, getChildById, getChildByCode } from "../../Services/apiChildren";
+import {
+    getChildrenByParent,
+    getChildById,
+    getChildByCode,
+    getNearestUpcomingLessonForChild,
+    getUpcomingLessonsForChild,
+} from "../../Services/apiChildren";
 
 // Get all children for a parent
 export function useChildrenByParent(parentId) {
@@ -27,6 +33,26 @@ export function useChildByCode(studentCode) {
         queryKey: ["childByCode", studentCode],
         queryFn: () => getChildByCode(studentCode),
         enabled: !!studentCode,
+        retry: 1,
+    });
+}
+
+// Get nearest upcoming lesson for one child
+export function useNearestLessonByChild(childId) {
+    return useQuery({
+        queryKey: ["nearestLessonByChild", childId],
+        queryFn: () => getNearestUpcomingLessonForChild(childId),
+        enabled: !!childId,
+        retry: 1,
+    });
+}
+
+// Get all upcoming lessons for one child
+export function useUpcomingLessonsByChild(childId) {
+    return useQuery({
+        queryKey: ["upcomingLessonsByChild", childId],
+        queryFn: () => getUpcomingLessonsForChild(childId),
+        enabled: !!childId,
         retry: 1,
     });
 }
