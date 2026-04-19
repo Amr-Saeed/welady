@@ -1,18 +1,11 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import {
-  BiBook,
-  BiCopy,
-  BiLineChart,
-  BiLogOut,
-  BiPlus,
-  BiTrash,
-} from "react-icons/bi";
+import { BiBook, BiCopy, BiLineChart, BiPlus, BiTrash } from "react-icons/bi";
 import toast from "react-hot-toast";
 import { deleteGroup, getTeacherGroups } from "../Services/apiGroups";
 import { getTeacherChildren } from "../Services/apiTeacherChildren";
-import { getTeacherProfile, signOut } from "../Services/apiAuth";
+import { getTeacherProfile } from "../Services/apiAuth";
 import CreateGroupModal from "../Features/Teachers/TeacherDashboard/CreateGroupModal";
 import ConfirmModal from "../Ui/ConfirmModal";
 import { formatScheduleRange } from "../Features/Teachers/GroupDetails/groupDetailsUtils";
@@ -54,18 +47,6 @@ function TeacherDashboard() {
     retry: 1,
   });
 
-  const signOutMutation = useMutation({
-    mutationFn: signOut,
-    onSuccess: () => {
-      toast.success("تم تسجيل الخروج بنجاح");
-      navigate("/", { replace: true });
-    },
-    onError: (error) => {
-      toast.error("خطأ في تسجيل الخروج");
-      console.error(error);
-    },
-  });
-
   const deleteGroupMutation = useMutation({
     mutationFn: deleteGroup,
     onSuccess: () => {
@@ -83,15 +64,6 @@ function TeacherDashboard() {
       navigate("/login/teachers", { replace: true });
     }
   }, [profileError, navigate]);
-
-  const handleSignOut = () => {
-    setConfirmModal({
-      isOpen: true,
-      type: "logout",
-      groupId: null,
-      groupName: null,
-    });
-  };
 
   const handleCopyGroupCode = async (event, groupCode) => {
     event.stopPropagation();
@@ -122,9 +94,7 @@ function TeacherDashboard() {
   };
 
   const handleConfirmAction = () => {
-    if (confirmModal.type === "logout") {
-      signOutMutation.mutate();
-    } else if (confirmModal.type === "deleteGroup") {
+    if (confirmModal.type === "deleteGroup") {
       deleteGroupMutation.mutate(confirmModal.groupId);
     }
     setConfirmModal({
@@ -178,15 +148,6 @@ function TeacherDashboard() {
               </span>
             </p>
           </div>
-
-          <button
-            onClick={handleSignOut}
-            disabled={signOutMutation.isPending}
-            className="flex items-center gap-2 rounded-lg bg-red-500 px-6 py-3 font-semibold text-white transition hover:bg-red-600 disabled:bg-gray-400"
-          >
-            <BiLogOut className="text-xl" />
-            تسجيل خروج
-          </button>
         </div>
 
         <div className="mb-8 grid grid-cols-1 gap-4 md:grid-cols-3">

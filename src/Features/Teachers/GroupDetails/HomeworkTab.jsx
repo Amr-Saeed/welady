@@ -6,9 +6,14 @@ import HomeworkDetailsModal from "./HomeworkDetailsModal";
 function HomeworkTab({ group, onRefresh }) {
   const [showAddModal, setShowAddModal] = useState(false);
   const [selectedHomework, setSelectedHomework] = useState(null);
+  const [detailsMode, setDetailsMode] = useState("edit");
 
   const dueDateFor = (homework) => homework.due_date || homework.dueDate;
   const childIdFor = (homework) => homework.child_id || homework.childID;
+  const openDetails = (homework, mode) => {
+    setDetailsMode(mode);
+    setSelectedHomework(homework);
+  };
 
   return (
     <>
@@ -29,8 +34,7 @@ function HomeworkTab({ group, onRefresh }) {
             {group.group_homework.map((hw) => (
               <div
                 key={hw.id}
-                onClick={() => setSelectedHomework(hw)}
-                className="cursor-pointer rounded-lg border border-gray-200 p-4 transition hover:shadow-md"
+                className="rounded-lg border border-gray-200 p-4 transition hover:shadow-md"
               >
                 <div className="flex items-start justify-between gap-4">
                   <div className="flex-1">
@@ -54,6 +58,23 @@ function HomeworkTab({ group, onRefresh }) {
                       طالب محدد
                     </span>
                   ) : null}
+                </div>
+
+                <div className="mt-4 flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={() => openDetails(hw, "edit")}
+                    className="rounded-lg bg-indigo-50 px-3 py-1.5 text-sm font-semibold text-indigo-700 hover:bg-indigo-100"
+                  >
+                    تعديل الواجب
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => openDetails(hw, "status")}
+                    className="rounded-lg bg-teal-50 px-3 py-1.5 text-sm font-semibold text-teal-700 hover:bg-teal-100"
+                  >
+                    مين عمل الواجب
+                  </button>
                 </div>
               </div>
             ))}
@@ -81,6 +102,7 @@ function HomeworkTab({ group, onRefresh }) {
       {selectedHomework ? (
         <HomeworkDetailsModal
           homework={selectedHomework}
+          mode={detailsMode}
           groupMembers={group.group_members}
           onClose={() => setSelectedHomework(null)}
           onSaved={onRefresh}

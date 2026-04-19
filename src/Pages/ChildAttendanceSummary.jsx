@@ -10,23 +10,56 @@ import {
 } from "react-icons/bs";
 import { useChildById } from "../Features/Parents/useChildInfo";
 import {
-  getChildAttendanceRecords,
-  getChildAttendanceSubjectBreakdown,
-  getChildAttendanceSummary,
-} from "../Services/apiAttendance";
+  useChildAttendanceRecords,
+} from "../Features/Parents/useAttendance";
 
 function ChildAttendanceSummary() {
   const navigate = useNavigate();
   const { childId } = useParams();
 
   const { data: child, isLoading, error } = useChildById(childId);
+  const { data: attendanceRecords = [] } = useChildAttendanceRecords(childId);
 
-  const summary = useMemo(() => getChildAttendanceSummary(childId), [childId]);
-  const records = useMemo(() => getChildAttendanceRecords(childId), [childId]);
-  const bySubject = useMemo(
-    () => getChildAttendanceSubjectBreakdown(childId),
-    [childId],
-  );
+  const summary = useMemo(() => {
+    return attendanceRecords.reduce(
+      (accumulator, record) => {
+        accumulator.total += 1;
+        if (record.status === "attended") accumulator.attended += 1;
+        if (record.status === "child_absent") accumulator.childAbsent += 1;
+        if (record.status === "child_late") accumulator.childLate += 1;
+        if (record.status === "teacher_canceled") accumulator.teacherCanceled += 1;
+        return accumulator;
+      },
+      { total: 0, attended: 0, childAbsent: 0, childLate: 0, teacherCanceled: 0 },
+    );
+  }, [attendanceRecords]);
+
+  const records = useMemo(() => attendanceRecords, [attendanceRecords]);
+  const bySubject = useMemo(() => {
+    const map = new Map();
+
+    attendanceRecords.forEach((record) => {
+      const subject = record.lesson?.subject || record.subject || "بدون مادة";
+      const existing = map.get(subject) || {
+        subject,
+        total: 0,
+        attended: 0,
+        childAbsent: 0,
+        childLate: 0,
+        teacherCanceled: 0,
+      };
+
+      existing.total += 1;
+      if (record.status === "attended") existing.attended += 1;
+      if (record.status === "child_absent") existing.childAbsent += 1;
+      if (record.status === "child_late") existing.childLate += 1;
+      if (record.status === "teacher_canceled") existing.teacherCanceled += 1;
+
+      map.set(subject, existing);
+    });
+
+    return Array.from(map.values()).sort((a, b) => b.total - a.total);
+  }, [attendanceRecords]);
 
   const formatDate = (value) => {
     if (!value) return "-";
@@ -152,7 +185,7 @@ function ChildAttendanceSummary() {
           <h2 className="text-lg font-bold text-gray-900">آخر التحديثات</h2>
           {records.slice(0, 8).map((record) => (
             <div
-              key={`${record.lessonId}-${record.updatedAt}`}
+              key={`${record.id}-${record.updated_at || record.updatedAt || record.marked_at || ""}`}
               className="bg-white rounded-xl border border-gray-200 p-3"
             >
               <div className="flex items-center justify-between gap-2">
@@ -160,7 +193,7 @@ function ChildAttendanceSummary() {
                   {record.lesson?.subject || "بدون مادة"}
                 </div>
                 <span
-                  className={`text-xs px-2 py-1 rounded-full font-semibold ${statusClass(record.status)}`}
+                  className={`text-xs  px-2 py-1 text-center rounded-full font-semibold ${statusClass(record.status)}`}
                 >
                   {statusLabel(record.status)}
                 </span>
@@ -169,7 +202,7 @@ function ChildAttendanceSummary() {
                 المدرس: {record.lesson?.teacherName || "غير محدد"}
               </div>
               <div className="text-xs text-gray-500 mt-1">
-                تاريخ التحديث: {formatDate(record.updatedAt)}
+                تاريخ التحديث: {formatDate(record.updated_at || record.updatedAt || record.marked_at)}
               </div>
             </div>
           ))}

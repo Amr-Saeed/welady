@@ -3,13 +3,20 @@ import { useState } from "react";
 import { createPortal } from "react-dom";
 import toast from "react-hot-toast";
 import { IoChevronForward } from "react-icons/io5";
-import { BsCalendar3, BsCheckLg, BsPerson } from "react-icons/bs";
+import {
+  BsBook,
+  BsCalendar3,
+  BsCheckLg,
+  BsPeople,
+  BsPerson,
+} from "react-icons/bs";
 import { useChildById } from "../Features/Parents/useChildInfo";
 import {
   useAddHomework,
   useDeleteHomework,
-  useHomeworksByChild,
+  useGroupHomeworksByChild,
   useHomeworkStatuses,
+  usePrivateHomeworksByChild,
 } from "../Features/Parents/useHomework";
 import { addInAppNotification } from "../Services/apiNotifications";
 
@@ -18,11 +25,37 @@ function ChildHomework() {
   const { childId } = useParams();
   const { data: child, isLoading, error } = useChildById(childId);
   const {
-    data: homeworks = [],
-    isLoading: isHomeworksLoading,
-    error: homeworksError,
-  } = useHomeworksByChild(childId);
-  const homeworkIds = homeworks.map((hw) => hw.id);
+    data: groupHomeworks = [],
+    isLoading: isGroupHomeworksLoading,
+    error: groupHomeworksError,
+  } = useGroupHomeworksByChild(childId);
+  const {
+    data: privateHomeworks = [],
+    isLoading: isPrivateHomeworksLoading,
+    error: privateHomeworksError,
+  } = usePrivateHomeworksByChild(childId);
+  const [selectedSource, setSelectedSource] = useState(null);
+
+  const currentHomeworks =
+    selectedSource === "group"
+      ? groupHomeworks
+      : selectedSource === "private"
+        ? privateHomeworks
+        : [];
+  const currentLoading =
+    selectedSource === "group"
+      ? isGroupHomeworksLoading
+      : selectedSource === "private"
+        ? isPrivateHomeworksLoading
+        : false;
+  const currentError =
+    selectedSource === "group"
+      ? groupHomeworksError
+      : selectedSource === "private"
+        ? privateHomeworksError
+        : null;
+
+  const homeworkIds = currentHomeworks.map((hw) => hw.id);
   const { data: statusRows = [] } = useHomeworkStatuses(childId, homeworkIds);
   const { mutateAsync: saveHomework, isPending: isSavingHomework } =
     useAddHomework(childId);
@@ -67,6 +100,13 @@ function ChildHomework() {
     return `${d}-${m}-${y}`;
   };
 
+  const normalizeTeacherLabel = (value) => {
+    const normalized = (value || "").toString().trim();
+    if (!normalized) return "";
+    if (normalized === "غير محدد" || normalized === "المدرس") return "";
+    return normalized;
+  };
+
   const getStatus = (dueDateValue) => {
     if (!dueDateValue) return "لم يبدأ";
     const now = new Date();
@@ -86,21 +126,28 @@ function ChildHomework() {
     setTeacherName("");
   };
 
-  const parseHomeworkData = (rawDescription) => {
+  const parseHomeworkData = (rawDescription, fallbackTeacher = "") => {
     if (!rawDescription) {
-      return { teacher: "غير محدد", details: "" };
+      return {
+        teacher: normalizeTeacherLabel(fallbackTeacher) || "غير محدد",
+        details: "",
+      };
     }
 
     const match = rawDescription.match(/^__teacher:(.*?)__\n([\s\S]*)$/);
     if (match) {
+      const embeddedTeacher = normalizeTeacherLabel(match[1]);
       return {
-        teacher: match[1] || "غير محدد",
+        teacher:
+          embeddedTeacher ||
+          normalizeTeacherLabel(fallbackTeacher) ||
+          "غير محدد",
         details: match[2] || "",
       };
     }
 
     return {
-      teacher: "غير محدد",
+      teacher: normalizeTeacherLabel(fallbackTeacher) || "غير محدد",
       details: rawDescription,
     };
   };
@@ -168,108 +215,187 @@ function ChildHomework() {
       </div>
 
       <div className="px-4 pt-6 space-y-4">
-        {isHomeworksLoading && (
+        {!selectedSource ? (
+          <>
+            <button
+              type="button"
+              onClick={() => setSelectedSource("group")}
+              className="w-full rounded-2xl border border-gray-200 bg-white p-5 text-right shadow-sm transition hover:shadow-md"
+            >
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-2xl font-bold text-gray-900">
+                    واجب المجموعات
+                  </h3>
+                  <p className="mt-1 text-sm text-gray-600">
+                    راجعي واجبات المجموعة التي ينتمي لها الطفل
+                  </p>
+                </div>
+                <div className="rounded-xl bg-blue-50 p-3">
+                  <BsPeople className="text-2xl text-blue-600" />
+                </div>
+              </div>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setSelectedSource("private")}
+              className="w-full rounded-2xl border border-gray-200 bg-white p-5 text-right shadow-sm transition hover:shadow-md"
+            >
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-2xl font-bold text-gray-900">
+                    واجب الدروس الخاصة
+                  </h3>
+                  <p className="mt-1 text-sm text-gray-600">
+                    راجعي واجبات الدروس الخاصة والواجبات اليدوية
+                  </p>
+                </div>
+                <div className="rounded-xl bg-yellow-50 p-3">
+                  <BsBook className="text-2xl text-yellow-600" />
+                </div>
+              </div>
+            </button>
+          </>
+        ) : (
+          <button
+            type="button"
+            onClick={() => setSelectedSource(null)}
+            className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-right font-semibold text-gray-700"
+          >
+            الرجوع لاختيار نوع الواجب
+          </button>
+        )}
+
+        {selectedSource && currentLoading && (
           <div className="text-center text-gray-600">
             جاري تحميل الواجبات...
           </div>
         )}
 
-        {homeworksError && (
+        {selectedSource && currentError && (
           <div className="text-center text-red-500">
             حدث خطأ في تحميل الواجبات
           </div>
         )}
 
-        {!isHomeworksLoading && !homeworksError && homeworks.length === 0 && (
-          <div className="bg-white border border-gray-200 rounded-2xl shadow-sm p-5 text-center text-gray-600">
-            لا توجد واجبات بعد. اضغطي على إضافة واجب لإضافة أول واجب.
-          </div>
-        )}
+        {selectedSource &&
+          !currentLoading &&
+          !currentError &&
+          currentHomeworks.length === 0 && (
+            <div className="bg-white border border-gray-200 rounded-2xl shadow-sm p-5 text-center text-gray-600">
+              {selectedSource === "group"
+                ? "لا توجد واجبات مجموعات حالياً."
+                : "لا توجد واجبات دروس خاصة حالياً."}
+            </div>
+          )}
 
-        {homeworks.map((item) => (
-          <div
-            key={item.id}
-            className="bg-white border border-gray-200 rounded-2xl shadow-sm p-5"
-          >
-            {(() => {
-              const statusInfo = statusByHomeworkId[item.id];
-              const isDone = statusInfo?.status === "done";
-              const status = isDone ? "تم" : getStatus(item.dueDate);
-              const statusClass = isDone
-                ? "text-green-700 bg-green-50"
-                : getStatusClass(status);
-              const parsed = parseHomeworkData(item.description);
+        {selectedSource &&
+          currentHomeworks.map((item) => (
+            <div
+              key={item.id}
+              className="bg-white border border-gray-200 rounded-2xl shadow-sm p-5"
+            >
+              {(() => {
+                const statusInfo = statusByHomeworkId[item.id];
+                const isDone = statusInfo?.status === "done";
+                const isNotDone = statusInfo?.status === "not_done";
+                const isFinalized = isDone || isNotDone;
+                const status = isDone
+                  ? "تم"
+                  : isNotDone
+                    ? "لم يتم"
+                    : getStatus(item.dueDate);
+                const statusClass = isDone
+                  ? "text-green-700 bg-green-50"
+                  : isNotDone
+                    ? "text-red-700 bg-red-50"
+                    : getStatusClass(status);
+                const parsed = parseHomeworkData(
+                  item.description,
+                  item.teacherName || item.teacher_name || "",
+                );
 
-              return (
-                <>
-                  <div className="flex items-start justify-between mb-2">
-                    <div className="text-right">
-                      <h3
-                        className={`text-2xl font-bold leading-none mb-1 ${
+                return (
+                  <>
+                    <div className="flex items-start justify-between mb-2">
+                      <div className="text-right">
+                        <h3
+                          className={`text-2xl font-bold leading-none mb-1 ${
+                            isFinalized
+                              ? "text-gray-500 line-through"
+                              : "text-gray-900"
+                          }`}
+                        >
+                          {item.title}
+                        </h3>
+                      </div>
+                      <span
+                        className={`px-3 py-1 rounded-full text-lg font-bold ${statusClass}`}
+                      >
+                        {status}
+                      </span>
+                    </div>
+
+                    <div
+                      dir="ltr"
+                      className="flex items-center justify-end gap-2 text-base text-gray-600 mb-2"
+                    >
+                      <span>{parsed.teacher}</span>
+                      <BsPerson className="text-gray-500" />
+                    </div>
+
+                    <p
+                      className={`text-lg leading-8 text-right mb-2 ${
+                        isFinalized
+                          ? "text-gray-500 line-through"
+                          : "text-gray-800"
+                      }`}
+                    >
+                      {parsed.details}
+                    </p>
+
+                    <div
+                      dir="ltr"
+                      className="flex items-center justify-end gap-2 text-base text-gray-600 mb-4"
+                    >
+                      <span>موعد التسليم: {formatDate(item.dueDate)}</span>
+                      <BsCalendar3 className="text-gray-500" />
+                    </div>
+
+                    {isFinalized &&
+                    (statusInfo?.submittedAt || statusInfo?.updatedAt) ? (
+                      <div
+                        className={`mb-4 rounded-lg p-2 text-right text-sm ${
                           isDone
-                            ? "text-gray-500 line-through"
-                            : "text-gray-900"
+                            ? "bg-green-50 text-green-700"
+                            : "bg-red-50 text-red-700"
                         }`}
                       >
-                        {item.title}
-                      </h3>
-                    </div>
-                    <span
-                      className={`px-3 py-1 rounded-full text-lg font-bold ${statusClass}`}
-                    >
-                      {status}
-                    </span>
-                  </div>
+                        {isDone
+                          ? "تم تنفيذ الواجب في: "
+                          : "تم تحديد أن الواجب لم يتم في: "}
+                        {new Date(
+                          statusInfo.submittedAt || statusInfo.updatedAt,
+                        ).toLocaleString("ar-EG")}
+                      </div>
+                    ) : null}
 
-                  <div
-                    dir="ltr"
-                    className="flex items-center justify-end gap-2 text-base text-gray-600 mb-2"
-                  >
-                    <span>{parsed.teacher}</span>
-                    <BsPerson className="text-gray-500" />
-                  </div>
-
-                  <p
-                    className={`text-lg leading-8 text-right mb-2 ${
-                      isDone ? "text-gray-500 line-through" : "text-gray-800"
-                    }`}
-                  >
-                    {parsed.details}
-                  </p>
-
-                  <div
-                    dir="ltr"
-                    className="flex items-center justify-end gap-2 text-base text-gray-600 mb-4"
-                  >
-                    <span>موعد التسليم: {formatDate(item.dueDate)}</span>
-                    <BsCalendar3 className="text-gray-500" />
-                  </div>
-
-                  {isDone &&
-                  (statusInfo?.submittedAt || statusInfo?.updatedAt) ? (
-                    <div className="mb-4 rounded-lg bg-green-50 p-2 text-right text-sm text-green-700">
-                      تم تنفيذ الواجب في:{" "}
-                      {new Date(
-                        statusInfo.submittedAt || statusInfo.updatedAt,
-                      ).toLocaleString("ar-EG")}
-                    </div>
-                  ) : null}
-
-                  {!isDone ? (
-                    <button
-                      type="button"
-                      onClick={() => setHomeworkToDelete(item)}
-                      className="w-full bg-[var(--main-color)] hover:bg-[var(--main-dark-color)] text-white font-bold py-3 rounded-xl transition-colors text-lg flex items-center justify-center gap-2"
-                    >
-                      <BsCheckLg />
-                      تم
-                    </button>
-                  ) : null}
-                </>
-              );
-            })()}
-          </div>
-        ))}
+                    {!isFinalized ? (
+                      <button
+                        type="button"
+                        onClick={() => setHomeworkToDelete(item)}
+                        className="w-full bg-[var(--main-color)] hover:bg-[var(--main-dark-color)] text-white font-bold py-3 rounded-xl transition-colors text-lg flex items-center justify-center gap-2"
+                      >
+                        <BsCheckLg />
+                        تم
+                      </button>
+                    ) : null}
+                  </>
+                );
+              })()}
+            </div>
+          ))}
       </div>
 
       {isFormOpen && (
@@ -332,16 +458,18 @@ function ChildHomework() {
         </div>
       )}
 
-      <div className="fixed bottom-0 left-0 right-0 bg-gray-100 border-t border-gray-200 p-4 max-w-md mx-auto">
-        <button
-          type="button"
-          onClick={() => setIsFormOpen(true)}
-          className="w-full bg-[var(--main-color)] hover:bg-[var(--main-dark-color)] text-white font-bold py-4 rounded-xl text-lg flex items-center justify-center gap-3"
-        >
-          <span className="text-2xl leading-none">+</span>
-          إضافة واجب
-        </button>
-      </div>
+      {selectedSource === "private" ? (
+        <div className="fixed bottom-0 left-0 right-0 bg-gray-100 border-t border-gray-200 p-4 max-w-md mx-auto">
+          <button
+            type="button"
+            onClick={() => setIsFormOpen(true)}
+            className="w-full bg-[var(--main-color)] hover:bg-[var(--main-dark-color)] text-white font-bold py-4 rounded-xl text-lg flex items-center justify-center gap-3"
+          >
+            <span className="text-2xl leading-none">+</span>
+            إضافة واجب
+          </button>
+        </div>
+      ) : null}
 
       {homeworkToDelete &&
         createPortal(

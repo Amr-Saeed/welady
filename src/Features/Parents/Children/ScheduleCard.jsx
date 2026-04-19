@@ -1,7 +1,7 @@
 import { BsCalendar3 } from "react-icons/bs";
 import { IoChevronBack } from "react-icons/io5";
 
-function ScheduleCard({ onClick }) {
+function ScheduleCard({ onClick, summary = "لا توجد حصص قادمة", detail = "" }) {
   return (
     <button
       type="button"
@@ -16,7 +16,10 @@ function ScheduleCard({ onClick }) {
           </div>
           <div>
             <h3 className="text-2xl font-bold text-gray-800">الجدول</h3>
-            <p className="text-gray-600 text-sm mt-1">2 حصص قادمة</p>
+            <p className="text-gray-600 text-sm mt-1">{summary}</p>
+            {detail ? (
+              <p className="mt-1 text-xs text-gray-500">{detail}</p>
+            ) : null}
           </div>
         </div>
         <IoChevronBack className="text-2xl text-gray-400" />

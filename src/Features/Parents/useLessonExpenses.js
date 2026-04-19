@@ -4,6 +4,7 @@ import {
     getLessonExpensesByChildId,
     markLessonExpensePaid,
     setLessonExpenseStatus,
+    setLessonExpenseStatusByLesson,
 } from "../../Services/apiLessonExpenses";
 
 export function useLessonExpensesByChild(childId) {
@@ -42,6 +43,17 @@ export function useSetLessonExpenseStatus(childId) {
 
     return useMutation({
         mutationFn: setLessonExpenseStatus,
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ["lessonExpenses", childId] });
+        },
+    });
+}
+
+export function useSetLessonExpenseStatusByLesson(childId) {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: setLessonExpenseStatusByLesson,
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ["lessonExpenses", childId] });
         },

@@ -1,3 +1,0 @@
-id,childID,subject,teacherName,lessonDay,lessonTime,location,price,created_at
-f2a3b4c5-cccc-cccc-cccc-cccccccccccc,e5f6a7b8-5555-5555-5555-555555555555,لغة عربية,الأستاذ خالد سعيد,"{الخميس}",15:00:00,سنتر النور التعليمي,180,2026-01-16T09:00:00Z
-a3b4c5d6-dddd-dddd-dddd-dddddddddddd,f6a7b8c9-6666-6666-6666-666666666666,أحياء,الدكتور أحمد فتحي,"{الجمعة}",14:00:00,مركز التميز,220,2026-01-17T10:00:00Z

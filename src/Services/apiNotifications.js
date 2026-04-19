@@ -1,4 +1,6 @@
 const MANUAL_NOTIFICATIONS_KEY = "childNotificationsManual";
+const MANUAL_TEACHER_NOTIFICATIONS_KEY = "teacherNotificationsManual";
+const READ_NOTIFICATIONS_KEY = "parentNotificationsRead";
 
 function readStore() {
     try {
@@ -10,6 +12,30 @@ function readStore() {
 
 function writeStore(items) {
     localStorage.setItem(MANUAL_NOTIFICATIONS_KEY, JSON.stringify(items));
+}
+
+function readTeacherStore() {
+    try {
+        return JSON.parse(localStorage.getItem(MANUAL_TEACHER_NOTIFICATIONS_KEY) || "[]");
+    } catch {
+        return [];
+    }
+}
+
+function writeTeacherStore(items) {
+    localStorage.setItem(MANUAL_TEACHER_NOTIFICATIONS_KEY, JSON.stringify(items));
+}
+
+function readReadStore() {
+    try {
+        return JSON.parse(localStorage.getItem(READ_NOTIFICATIONS_KEY) || "{}");
+    } catch {
+        return {};
+    }
+}
+
+function writeReadStore(store) {
+    localStorage.setItem(READ_NOTIFICATIONS_KEY, JSON.stringify(store));
 }
 
 function toDate(value) {
@@ -72,6 +98,51 @@ export function addInAppNotification({
     return next;
 }
 
+export function addTeacherInAppNotification({
+    teacherId,
+    type,
+    title,
+    message,
+    dedupeKey,
+    payload,
+}) {
+    if (!teacherId) return null;
+
+    const items = readTeacherStore();
+
+    if (dedupeKey) {
+        const existing = items.find(
+            (item) => item.teacherId === teacherId && item.dedupeKey === dedupeKey,
+        );
+        if (existing) return existing;
+    }
+
+    const next = {
+        id: crypto.randomUUID(),
+        teacherId,
+        type,
+        title,
+        message,
+        payload: payload || null,
+        dedupeKey: dedupeKey || null,
+        createdAt: new Date().toISOString(),
+        source: "manual",
+    };
+
+    items.push(next);
+    writeTeacherStore(items);
+    return next;
+}
+
+export function getManualTeacherNotifications(teacherId) {
+    return readTeacherStore()
+        .filter((item) => item.teacherId === teacherId)
+        .sort(
+            (a, b) =>
+                new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime(),
+        );
+}
+
 export function getManualChildNotifications(childId) {
     return readStore()
         .filter((item) => item.childId === childId)
@@ -95,6 +166,19 @@ export function markManualNotificationResolved(notificationId, payloadPatch = {}
         };
     });
     writeStore(next);
+}
+
+export function isNotificationRead(notificationId) {
+    if (!notificationId) return false;
+    const store = readReadStore();
+    return Boolean(store[notificationId]);
+}
+
+export function markNotificationRead(notificationId) {
+    if (!notificationId) return;
+    const store = readReadStore();
+    store[notificationId] = new Date().toISOString();
+    writeReadStore(store);
 }
 
 function buildLessonReminderNotifications({ childId, lessons, now }) {
@@ -179,7 +263,11 @@ function buildAttendanceAlerts({ childId, attendanceRecords, now }) {
 
     return attendanceRecords
         .map((record) => {
-            const updatedAt = toDate(record.updatedAt);
+            if (record?.markedByRole === "parent") return null;
+
+            const updatedAt = toDate(
+                record.updatedAt || record.updated_at || record.marked_at,
+            );
             if (!updatedAt || updatedAt < weekAgo) return null;
 
             if (record.status === "child_absent") {

@@ -1,11 +1,31 @@
 import { BiArrowToLeft } from "react-icons/bi";
-import { BsArrowBarLeft, BsStopwatch, BsWatch } from "react-icons/bs";
+import { BsArrowBarLeft, BsStopwatch } from "react-icons/bs";
 import { IoCopyOutline } from "react-icons/io5";
 import toast from "react-hot-toast";
 import { useNavigate } from "react-router-dom";
+import { formatToArabic12Hour } from "../Utils/helper";
+import { useNearestLessonByChild } from "../Features/Parents/useChildInfo";
+
+function formatDayName(dateLike) {
+  const date = new Date(dateLike);
+  if (Number.isNaN(date.getTime())) return "-";
+  return date.toLocaleDateString("ar-EG", { weekday: "long" });
+}
+
+function formatDateLabel(dateLike) {
+  const date = new Date(dateLike);
+  if (Number.isNaN(date.getTime())) return "-";
+  return date.toLocaleDateString("ar-EG", {
+    year: "numeric",
+    month: "numeric",
+    day: "numeric",
+  });
+}
 
 function ChildCard({ child }) {
   const navigate = useNavigate();
+  const { data: nearestLesson, isLoading: nearestLessonLoading } =
+    useNearestLessonByChild(child?.id);
 
   const handleCopyCode = (e) => {
     e.stopPropagation(); // Prevent navigation when copying
@@ -56,10 +76,25 @@ function ChildCard({ child }) {
         <div className="flex items-center gap-1">
           <BsStopwatch className="text-2xl text-[var(--main-color)] mt-2" />
           <div>
-            <h4 className="text-lg font-bold text-[var(--main-color)] tracking-wider cursor-pointer">
-              درس إنجليزي
-            </h4>
-            <p className="  ">الموعد: الجمعة الساعة عشرة</p>
+            {nearestLessonLoading ? (
+              <p className="text-sm text-gray-600">جاري تحميل أقرب موعد...</p>
+            ) : nearestLesson ? (
+              <>
+                <h4 className="text-lg font-bold text-[var(--main-color)] tracking-wider cursor-pointer">
+                  {nearestLesson.subject} ({nearestLesson.typeLabel})
+                </h4>
+                <p>
+                  الموعد: {formatDayName(nearestLesson.timestamp)} -{" "}
+                  {formatDateLabel(nearestLesson.timestamp)}
+                  {nearestLesson.time
+                    ? ` الساعة ${formatToArabic12Hour(nearestLesson.time)}`
+                    : ""}
+                </p>
+                <p>المكان: {nearestLesson.location || "غير محدد"}</p>
+              </>
+            ) : (
+              <p className="text-sm text-gray-600">لا يوجد موعد قادم حالياً</p>
+            )}
           </div>
         </div>
       </div>

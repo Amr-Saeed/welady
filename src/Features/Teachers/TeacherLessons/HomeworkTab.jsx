@@ -203,7 +203,8 @@ function HomeworkTab({ children, selectedLessonId, onClearLessonFilter }) {
                 localStatusByHomework[hw.id] ||
                 statusByHomeworkId[hw.id]?.status ||
                 "pending";
-              const isLockedDone = currentStatus === "done";
+              const isLockedDone =
+                currentStatus === "done" || currentStatus === "not_done";
 
               return (
                 <>
@@ -324,7 +325,7 @@ function HomeworkTab({ children, selectedLessonId, onClearLessonFilter }) {
                       </>
                     ) : (
                       <span className="inline-flex items-center rounded-lg bg-green-50 px-3 py-1.5 text-sm font-semibold text-green-700">
-                        تم التنفيذ - الحالة مقفلة
+                        تم تسجيل الحالة - الحالة مقفلة
                       </span>
                     )}
 

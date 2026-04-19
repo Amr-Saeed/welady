@@ -1,3 +1,0 @@
-id,childID,groupID,privateLessonID,manualLessonID,lessonDate,status,markedByRole,notes,marked_at,created_at
-d2e3f4a5-7070-7070-7070-707070707070,e5f6a7b8-5555-5555-5555-555555555555,b8c9d0e1-8888-8888-8888-888888888888,,,2026-02-01,attended,system,,2026-02-01T16:30:00Z,2026-02-01T16:30:00Z
-e3f4a5b6-8080-8080-8080-808080808080,f6a7b8c9-6666-6666-6666-666666666666,,d0e1f2a3-aaaa-aaaa-aaaa-aaaaaaaaaaaa,,2026-02-03,canceled,teacher,المدرس ألغى الحصة,2026-02-03T18:00:00Z,2026-02-03T18:00:00Z

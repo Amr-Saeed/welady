@@ -1,7 +1,12 @@
 import { BiDollar } from "react-icons/bi";
 import { IoChevronBack } from "react-icons/io5";
 
-function ExpensesCard({ onClick }) {
+function ExpensesCard({
+  onClick,
+  weekLabel = "0 ج.م",
+  monthLabel = "0 ج.م",
+  unpaidLabel = "0 مصروفات لم تُدفع",
+}) {
   return (
     <button
       type="button"
@@ -22,14 +27,14 @@ function ExpensesCard({ onClick }) {
       <div className="space-y-2 text-sm">
         <div className="flex items-center gap-2">
           <span className="text-gray-600">هذا الأسبوع:</span>
-          <span className="font-bold text-gray-800">350 ج.م</span>
+          <span className="font-bold text-gray-800">{weekLabel}</span>
         </div>
         <div className="flex items-center gap-2 ">
           <span className="text-gray-600">هذا الشهر:</span>
-          <span className="font-bold text-gray-800">1400 ج.م</span>
+          <span className="font-bold text-gray-800">{monthLabel}</span>
         </div>
         <div className="flex items-center justify-between pt-2 border-t border-gray-200">
-          <span className="text-red-600 font-semibold">1 مصروفات لم تُدفع</span>
+          <span className="text-red-600 font-semibold">{unpaidLabel}</span>
         </div>
       </div>
     </button>

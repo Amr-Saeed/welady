@@ -28,6 +28,7 @@ function normalizeGroup(group, extras = {}) {
     return {
         ...group,
         teacher_id: group.teacherID ?? group.teacher_id ?? null,
+        teacher_name: group.teacherName ?? group.teacher_name ?? null,
         group_code: group.groupCode ?? group.group_code ?? null,
         is_active: group.isActive ?? group.is_active ?? true,
         name: buildGroupName(group),
@@ -114,6 +115,36 @@ function toMinutes(timeValue) {
 
 function intervalsOverlap(startA, endA, startB, endB) {
     return startA < endB && endA > startB;
+}
+
+async function syncGroupMembershipSnapshot(groupId) {
+    const { data: membersRows, error: membersError } = await supabase
+        .from('group_members')
+        .select('childID')
+        .eq('groupID', groupId)
+        .eq('isActive', true);
+
+    if (membersError) throw membersError;
+
+    const childIds = [...new Set((membersRows || []).map((row) => row.childID).filter(Boolean))];
+
+    const { error: groupUpdateError } = await supabase
+        .from('groups')
+        .update({
+            studentsNumber: childIds.length,
+            childIDs: childIds,
+        })
+        .eq('id', groupId);
+
+    if (groupUpdateError) {
+        // Some environments might not have childIDs column yet.
+        const { error: fallbackError } = await supabase
+            .from('groups')
+            .update({ studentsNumber: childIds.length })
+            .eq('id', groupId);
+
+        if (fallbackError) throw fallbackError;
+    }
 }
 
 async function assertNoTeacherScheduleConflicts(teacherId, newSchedules = []) {
@@ -213,6 +244,21 @@ export async function createGroup(name, subject, type, description = "", schedul
         if (sessionError || !session?.user) throw new Error("Not authenticated");
 
         const teacher_id = session.user.id;
+        const location = String(schedule.location || "").trim();
+
+        if (!location) {
+            throw new Error("يرجى إدخال مكان الحصة");
+        }
+
+        const { data: teacherUser } = await supabase
+            .from('users')
+            .select('name')
+            .eq('id', teacher_id)
+            .maybeSingle();
+
+        const resolvedTeacherName =
+            String(teacherUser?.name || session.user.user_metadata?.name || "").trim() ||
+            "المدرس";
 
         const lessonDays = Array.isArray(schedule.lessonDays) ? schedule.lessonDays : [];
         const lessonTimes = Array.isArray(schedule.lessonTimes) ? schedule.lessonTimes : [];
@@ -234,12 +280,13 @@ export async function createGroup(name, subject, type, description = "", schedul
             .from('groups')
             .insert({
                 teacherID: teacher_id,
+                teacherName: resolvedTeacherName,
                 subject,
                 grade: name,
                 lessonDays,
                 lessonTimes,
                 lessonTimesEnds,
-                location: schedule.location || description,
+                location,
                 groupCode: groupCode,
                 isActive: true,
                 monthlyFee,
@@ -477,6 +524,41 @@ export async function addMemberToGroup(groupId, childId, _PARENT_ID) {
     try {
         void _PARENT_ID;
 
+        // Prefer RPC to bypass parent RLS restrictions safely.
+        const { data: rpcMemberId, error: rpcError } = await supabase
+            .rpc('add_child_to_group_as_parent', {
+                p_group_id: groupId,
+                p_child_id: childId,
+            });
+
+        if (!rpcError) {
+            try {
+                await syncGroupMembershipSnapshot(groupId);
+            } catch (snapshotError) {
+                console.warn('⚠️ Could not sync group membership snapshot after join:', snapshotError);
+            }
+
+            return {
+                id: rpcMemberId,
+                groupID: groupId,
+                childID: childId,
+                isActive: true,
+            };
+        }
+
+        // Function not found in PostgREST schema cache: fallback to direct insert.
+        if (rpcError.code !== 'PGRST202') {
+            const rlsDenied =
+                rpcError.code === '42501' ||
+                /row-level security policy/i.test(String(rpcError.message || ''));
+
+            if (rlsDenied) {
+                throw new Error('صلاحيات قاعدة البيانات تمنع إضافة الطالب. نفّذ ملف SQL الخاص بانضمام ولي الأمر للمجموعة ثم أعد المحاولة.');
+            }
+
+            throw rpcError;
+        }
+
         const { data: existingMember, error: existingError } = await supabase
             .from('group_members')
             .select('id')
@@ -502,6 +584,12 @@ export async function addMemberToGroup(groupId, childId, _PARENT_ID) {
 
         if (error) throw error;
 
+        try {
+            await syncGroupMembershipSnapshot(groupId);
+        } catch (snapshotError) {
+            console.warn('⚠️ Could not sync group membership snapshot after join:', snapshotError);
+        }
+
         console.log("✅ Member added to group:", data);
         return data;
     } catch (error) {
@@ -522,6 +610,8 @@ export async function removeMemberFromGroup(groupId, childId) {
             .eq('childID', childId);
 
         if (error) throw error;
+
+        await syncGroupMembershipSnapshot(groupId);
 
         console.log("✅ Member removed from group");
         return true;
@@ -791,7 +881,7 @@ export async function addHomework(groupId, title, description, dueDate, childId 
             .from('homework')
             .insert({
                 groupID: groupId,
-                childID: childId,
+                childID: childId || null,
                 title,
                 description,
                 dueDate: dueDate,

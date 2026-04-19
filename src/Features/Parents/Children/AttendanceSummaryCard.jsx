@@ -1,7 +1,11 @@
 import { BsClipboardData } from "react-icons/bs";
 import { IoChevronBack } from "react-icons/io5";
 
-function AttendanceSummaryCard({ onClick }) {
+function AttendanceSummaryCard({
+  onClick,
+  summary = "لا توجد سجلات حضور",
+  detail = "",
+}) {
   return (
     <button
       type="button"
@@ -16,9 +20,10 @@ function AttendanceSummaryCard({ onClick }) {
           </div>
           <div>
             <h3 className="text-2xl font-bold text-gray-800">ملخص الحضور</h3>
-            <p className="text-gray-600 text-sm mt-1">
-              حضور وغياب وإلغاء الدروس
-            </p>
+            <p className="text-gray-600 text-sm mt-1">{summary}</p>
+            {detail ? (
+              <p className="mt-1 text-xs text-gray-500">{detail}</p>
+            ) : null}
           </div>
         </div>
         <IoChevronBack className="text-2xl text-gray-400" />
